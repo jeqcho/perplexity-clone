@@ -3,3 +3,5 @@
 4.20pm claude code done implementation. Add tweaks like registering commands
 4.28pm Choose a underlying model. Test run.
 4.31pm test run is fine for some cases. fixing edge cases and improve runtime for agents.
+4.38pm MVP. Improve runtime.
+4.42pm decided to remove some features to improve runtime (judge at the end, parallel agents with diff prompts)

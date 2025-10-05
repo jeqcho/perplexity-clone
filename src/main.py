@@ -3,17 +3,13 @@
 
 import sys
 import argparse
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from src.config import Config
 from src.search.serpapi_client import SerpAPIClient
-from src.search.result_analyzer import ResultAnalyzer
 from src.agents.comprehensive_agent import ComprehensiveAgent
-from src.agents.factual_agent import FactualAgent
-from src.agents.analytical_agent import AnalyticalAgent
-from src.judge.llm_judge import LLMJudge
-from src.utils.response_validator import ResponseValidator
 
 
 def run_agent(agent, query: str, search_results: List[Dict]) -> Dict[str, str]:
@@ -48,11 +44,6 @@ def main():
         nargs="+",
         help="Search query to process"
     )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Show verbose output including all agent responses"
-    )
 
     args = parser.parse_args()
     query = " ".join(args.query)
@@ -62,63 +53,58 @@ def main():
         print("Initializing system...")
         Config.validate()
 
-        # Step 1: Analyze query to determine optimal number of search results
+        # Step 1: Fetch search results (fixed at 7 for speed)
         print(f"\nQuery: {query}")
-        print("\n[1/5] Analyzing query complexity...")
-        analyzer = ResultAnalyzer()
-        result_count = analyzer.determine_result_count(query)
-        print(f"→ Will fetch {result_count} search results")
-
-        # Step 2: Fetch search results
-        print("\n[2/5] Fetching search results...")
+        print("\n[1/2] Fetching search results...")
+        result_count = 7  # Fixed for optimal latency
         serpapi_client = SerpAPIClient()
         search_results = serpapi_client.search(query, num_results=result_count)
         print(f"→ Retrieved {len(search_results)} results")
 
-        # Step 3: Run agents in parallel
-        print("\n[3/5] Running agents in parallel...")
+        # Step 2: Race 3 identical agents - use whoever finishes first
+        print("\n[2/2] Racing 3 agents for fastest response...")
+
         agents = [
             ComprehensiveAgent(),
-            FactualAgent(),
-            AnalyticalAgent()
+            ComprehensiveAgent(),
+            ComprehensiveAgent()
         ]
 
-        agent_responses = []
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        best_response = None
+        winner_num = None
+
+        # Don't use context manager - we want to exit immediately when first completes
+        executor = ThreadPoolExecutor(max_workers=3)
+
+        try:
+            # Submit all agents
             futures = {
-                executor.submit(run_agent, agent, query, search_results): agent
-                for agent in agents
+                executor.submit(run_agent, agent, query, search_results): i
+                for i, agent in enumerate(agents, 1)
             }
 
+            # as_completed() returns futures in order of completion
+            # We take the FIRST one that succeeds and exit immediately
             for future in as_completed(futures):
-                agent = futures[future]
+                agent_num = futures[future]
                 try:
                     response_data = future.result()
-                    agent_responses.append(response_data)
-                    print(f"→ {response_data['agent_name']} completed")
+                    best_response = response_data['response']
+                    winner_num = agent_num
+                    print(f"→ Agent {agent_num} won the race! ⚡")
+                    # Immediately shutdown without waiting for other threads
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
                 except Exception as e:
-                    # Fail fast on agent errors
-                    raise e
+                    print(f"⚠ Agent {agent_num} failed: {str(e)}")
+                    continue
 
-        # Step 4: Validate responses (optional, for debugging)
-        if args.verbose:
-            print("\n[4/5] Validating responses...")
-            validation = ResponseValidator.validate_all_responses(agent_responses)
-            if not validation["valid"]:
-                print("⚠ Warning: Some validation issues found:")
-                for issue in validation["issues"]:
-                    print(f"  - {issue}")
-            else:
-                print("→ All responses valid")
-        else:
-            print("\n[4/5] Validating responses...")
-            print("→ Validation complete")
-
-        # Step 5: Judge selects best response
-        print("\n[5/5] Judging responses...")
-        judge = LLMJudge()
-        best_response = judge.evaluate_responses(query, agent_responses)
-        print("→ Best response selected")
+            if best_response is None:
+                raise Exception("All agents failed to generate a response")
+        finally:
+            # Clean up executor if not already shutdown
+            if executor._shutdown == False:
+                executor.shutdown(wait=False, cancel_futures=True)
 
         # Display results
         print("\n" + "=" * 80)
@@ -127,16 +113,8 @@ def main():
         print(best_response)
         print("=" * 80)
 
-        # Verbose output: show all agent responses
-        if args.verbose:
-            print("\n" + "=" * 80)
-            print("ALL AGENT RESPONSES (VERBOSE MODE)")
-            print("=" * 80)
-            for response_data in agent_responses:
-                print(f"\n{response_data['agent_name']}:")
-                print("-" * 80)
-                print(response_data['response'])
-                print("-" * 80)
+        # Force exit immediately (don't wait for background threads)
+        sys.exit(0)
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")
