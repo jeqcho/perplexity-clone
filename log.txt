@@ -5,3 +5,4 @@
 4.31pm test run is fine for some cases. fixing edge cases and improve runtime for agents.
 4.38pm MVP. Improve runtime.
 4.42pm decided to remove some features to improve runtime (judge at the end, parallel agents with diff prompts)
+4.50pm done optimizing latency for now. Now optimizing prompt for the presentation
