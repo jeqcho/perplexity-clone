@@ -1,7 +1,8 @@
 """Rich-based console display utilities for enhanced UX."""
 
+import random
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Callable
 from contextlib import contextmanager
 from rich.console import Console
 from rich.panel import Panel
@@ -80,7 +81,45 @@ class Display:
         console.print(f"[red]❌[/red] {message}", style="bold red")
 
     @staticmethod
-    def search_results_preview(search_results: List[Dict[str, Any]], sequential_delay: float = 0.5):
+    def random_delay(target: float, jitter: float = 0.2, minimum: float = 0.05, maximum: Optional[float] = None) -> float:
+        """Return a randomized delay bounded by jitter and optional limits."""
+        if target <= 0:
+            return max(minimum, 0.0)
+
+        if jitter <= 0:
+            low = high = max(minimum, target)
+        else:
+            low = max(minimum, target - jitter)
+            high = target + jitter
+
+        if maximum is not None:
+            high = min(high, maximum)
+
+        if high < low:
+            high = low
+
+        return random.uniform(low, high)
+
+    @staticmethod
+    def pause(
+        target: float,
+        jitter: float = 0.2,
+        minimum: float = 0.05,
+        maximum: Optional[float] = None,
+        fast_forward: bool = False
+    ):
+        """Sleep for a randomized amount of time derived from the target delay."""
+        if fast_forward:
+            return
+        time.sleep(Display.random_delay(target, jitter, minimum, maximum))
+
+    @staticmethod
+    def search_results_preview(
+        search_results: List[Dict[str, Any]],
+        sequential_delay: float = 0.5,
+        jitter: float = 0.2,
+        is_fast_forward: Optional[Callable[[], bool]] = None
+    ):
         """Display ALL search results sequentially, one at a time.
 
         Shows all sources to keep users engaged and reading while agents work.
@@ -88,7 +127,9 @@ class Display:
 
         Args:
             search_results: List of search results
-            sequential_delay: Delay in seconds between showing each source (default: 0.5s)
+            sequential_delay: Target delay in seconds between showing each source (default: 0.5s)
+            jitter: Maximum random variation applied to the sequential delay (default: 0.2s)
+            is_fast_forward: Optional callable returning True to skip delays dynamically
         """
         if not search_results:
             return
@@ -98,7 +139,13 @@ class Display:
 
         # Show ALL results one at a time for maximum engagement
         for i, result in enumerate(search_results, 1):
-            time.sleep(sequential_delay)  # Deliberate pause for readability
+            fast_forward = is_fast_forward() if is_fast_forward else False
+            Display.pause(
+                sequential_delay,
+                jitter=jitter,
+                minimum=0.15,
+                fast_forward=fast_forward
+            )
             title = result.get('title', 'No title')
             # Truncate long titles
             if len(title) > 70:
@@ -108,14 +155,22 @@ class Display:
         console.print()
 
     @staticmethod
-    def progress_message(message: str, delay: float = 0.4):
+    def progress_message(
+        message: str,
+        delay: float = 0.4,
+        jitter: float = 0.15,
+        is_fast_forward: Optional[Callable[[], bool]] = None
+    ):
         """Display a progress message with a delay.
 
         Args:
             message: The message to display
-            delay: Delay before showing the message (default: 0.4s)
+            delay: Target delay before showing the message (default: 0.4s)
+            jitter: Maximum random variation applied to the delay (default: 0.15s)
+            is_fast_forward: Optional callable returning True to skip the delay dynamically
         """
-        time.sleep(delay)
+        fast_forward = is_fast_forward() if is_fast_forward else False
+        Display.pause(delay, jitter=jitter, minimum=0.1, fast_forward=fast_forward)
         console.print(f"[dim cyan]→[/dim cyan] [dim]{message}[/dim]")
 
     @staticmethod

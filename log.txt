@@ -9,3 +9,6 @@
 4.59pm first round of prompt engineering done. Second round.
 5.06pm second round done. productionizing it.
 5.14pm planning ui/ux
+5.29pm done ui. implement streaming
+5.42pm ditch streaming, doesn't seem to work. going back to make ui nicer.
+5.51pm switch to 4.1 mini so it's faster

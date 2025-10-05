@@ -35,8 +35,6 @@ def run_agent(agent, query: str, search_results: List[Dict]) -> Dict[str, str]:
     except Exception as e:
         # Re-raise to fail fast
         raise Exception(f"{agent.get_strategy_name()} failed: {str(e)}") from e
-
-
 def main():
     """Main entry point for the CLI application."""
     parser = argparse.ArgumentParser(
@@ -89,39 +87,81 @@ def main():
             agent_future_started = True
             # === BACKEND WORKING IN PARALLEL ===
 
+            # Track if we should fast-forward UI once an agent finishes
+            fast_forward_state = {"value": False}
+
+            def should_fast_forward() -> bool:
+                if fast_forward_state["value"]:
+                    return True
+                for future in futures.keys():
+                    if future.done() and future.exception() is None:
+                        fast_forward_state["value"] = True
+                        return True
+                return False
+
             # === FRONTEND: Smooth sequential UI (purely cosmetic delays) ===
             # Show success after fetch completes
-            time.sleep(0.4)  # Longer delay for smooth reading
+            Display.pause(0.4, jitter=0.18, minimum=0.2, fast_forward=should_fast_forward())  # Slight pause for smooth reading
             Display.success(f"Retrieved {len(search_results)} results")
 
             # Show ALL search results sequentially (one at a time for maximum engagement)
             # While user reads these, agents are already processing in background
             # With 7 sources @ 0.5s each = ~3.5s of engaging reading time
-            time.sleep(0.4)  # Frontend delay only
-            Display.search_results_preview(search_results, sequential_delay=0.5)  # ~3.5s total with 7 sources
+            Display.pause(0.4, jitter=0.22, minimum=0.2, fast_forward=should_fast_forward())  # Frontend pause only
+            Display.search_results_preview(
+                search_results,
+                sequential_delay=0.5,
+                jitter=0.25,
+                is_fast_forward=should_fast_forward
+            )  # ~3.5s total with 7 sources
 
             # By now agents have been working for ~4+ seconds already!
             # Add more progress steps to keep user engaged
-            time.sleep(0.4)
+            Display.pause(0.35, jitter=0.15, minimum=0.18, fast_forward=should_fast_forward())
             Display.step(2, 5, "Analyzing query complexity...")
-            Display.progress_message("Identified key concepts and entities", delay=0.5)
+            Display.progress_message(
+                "Identified key concepts and entities",
+                delay=0.5,
+                jitter=0.2,
+                is_fast_forward=should_fast_forward
+            )
 
-            time.sleep(0.4)
+            Display.pause(0.38, jitter=0.18, minimum=0.2, fast_forward=should_fast_forward())
             Display.step(3, 5, "Cross-referencing sources...")
-            Display.progress_message("Comparing information across sources", delay=0.5)
-            Display.progress_message("Fact-checking claims", delay=0.5)
+            Display.progress_message(
+                "Comparing information across sources",
+                delay=0.5,
+                jitter=0.2,
+                is_fast_forward=should_fast_forward
+            )
+            Display.progress_message(
+                "Fact-checking claims",
+                delay=0.45,
+                jitter=0.18,
+                is_fast_forward=should_fast_forward
+            )
 
-            time.sleep(0.4)
+            Display.pause(0.42, jitter=0.2, minimum=0.22, fast_forward=should_fast_forward())
             Display.step(4, 5, "Synthesizing information...")
-            Display.progress_message("Organizing key points", delay=0.5)
-            Display.progress_message("Building coherent narrative", delay=0.5)
+            Display.progress_message(
+                "Organizing key points",
+                delay=0.48,
+                jitter=0.18,
+                is_fast_forward=should_fast_forward
+            )
+            Display.progress_message(
+                "Building coherent narrative",
+                delay=0.52,
+                jitter=0.22,
+                is_fast_forward=should_fast_forward
+            )
 
-            time.sleep(0.4)
+            Display.pause(0.36, jitter=0.17, minimum=0.18, fast_forward=should_fast_forward())
             Display.step(5, 5, "Finalizing answer...")
 
             # Use spinner to show progress during final generation (reactive UI)
             # Agents have been working for ~10+ seconds already - exit immediately if done
-            time.sleep(0.3)  # Frontend delay only
+            Display.pause(0.3, jitter=0.12, minimum=0.15, fast_forward=should_fast_forward())  # Frontend delay only
             with Display.spinner("Formatting response with citations"):
                 # as_completed() returns futures in order of completion
                 # We take the FIRST one that succeeds and exit immediately
@@ -148,7 +188,7 @@ def main():
 
         # Success - answer generated (brief confirmation)
         Display.success("Answer complete! ⚡")
-        time.sleep(0.5)  # Longer pause before showing answer for dramatic effect
+        Display.pause(0.5, jitter=0.25, minimum=0.25, fast_forward=should_fast_forward())  # Dramatic pause before showing answer
 
         # Calculate total elapsed time
         total_elapsed = time.time() - total_start
