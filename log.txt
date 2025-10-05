@@ -1,0 +1,5 @@
+4pm init setup, plan with claude code
+4.15pm planning done, let claude code do it. Check online for perplexity architecture
+4.20pm claude code done implementation. Add tweaks like registering commands
+4.28pm Choose a underlying model. Test run.
+4.31pm test run is fine for some cases. fixing edge cases and improve runtime for agents.
