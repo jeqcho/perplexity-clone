@@ -6,3 +6,6 @@
 4.38pm MVP. Improve runtime.
 4.42pm decided to remove some features to improve runtime (judge at the end, parallel agents with diff prompts)
 4.50pm done optimizing latency for now. Now optimizing prompt for the presentation
+4.59pm first round of prompt engineering done. Second round.
+5.06pm second round done. productionizing it.
+5.14pm planning ui/ux
